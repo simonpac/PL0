@@ -23,6 +23,8 @@ typedef enum
 	readsym = 32, elsesym = 33
 } token_type;
 */
+
+// token type for parser
 typedef enum
 {
 	nulsym = 1, identsym, numbersym, plussym, minussym,
@@ -32,6 +34,12 @@ typedef enum
 	whilesym, dosym, callsym, constsym, varsym, procsym, writesym,
 	readsym , elsesym
 } token_type;
+
+// Opcodes for virtual machine
+typedef enum
+{
+	LIT = 1, OPR, LOD, STO, CAL, INC, JMP, JPC,SOI, SIO
+} opcode;
 
 token_type token;
 int token_num = 0;
@@ -44,22 +52,78 @@ void expression(symbol *symbols);
 void condition(symbol *symbols);
 void term(symbol *symbols);
 void factor(symbol *symbols);
+symbol* create_symbol(symbol* symbols);
+
+
+symbol* create_symbol(symbol* symbols)
+{
+
+	int counter = 0;
+	int counter_symbol = 0;
+	int var_counter = 0;
+	symbol *create_symbols = malloc(sizeof(symbol) * 1000);
+	bzero(create_symbols,sizeof(symbol)*1000);
+
+	while(1)
+	{
+		if(symbols[counter].kind == 29 )	
+		{
+			counter ++;
+			while(symbols[counter].kind != semicolonsym){
+					if(symbols[counter].kind == 17)
+						counter ++;
+					create_symbols[counter_symbol].kind = 2;
+					strcpy(create_symbols[counter_symbol].name,symbols[counter].name);
+					create_symbols[counter_symbol].level = 0;
+					create_symbols[counter_symbol].addr = var_counter;
+					var_counter ++;
+					counter_symbol ++;
+					counter ++;
+
+			}
+		}
+		else if(symbols[counter].kind == 28){
+			counter ++;
+			while(symbols[counter].kind != semicolonsym){
+				if(symbols[counter].kind == 17)
+					counter ++;
+				create_symbols[counter_symbol].kind = 1;
+				strcpy(create_symbols[counter_symbol].name, symbols[counter].name);
+				counter ++;
+				counter ++;
+				create_symbols[counter_symbol].val = symbols[counter].val;
+				counter_symbol ++;
+				counter ++;
+				printf("%d\n",symbols[counter].kind);
+			}
+		
+		}
+
+		else if(create_symbols[counter].kind == 0)
+			return create_symbols;
+
+		counter ++;
+	}
+
+		return create_symbols;
+}
 
 void get_token(symbol *symbols)
 {
 	token = symbols[token_num].kind;
-	//if (token == 2)
-		//printf("token = %d\tname = %s\t", token, symbols[token_num].name);
-	//else if (token == 3)
-		//printf("token = %d\tvalue = %d\t", token, symbols[token_num].val);
-	//else
-		//printf("token = %d\t", token);
 	token_num++;
 }
 
 int main()
 {
 	symbol *symbols = read_file();
+	symbol * symbols_table = create_symbol(symbols);
+	int x = 0;
+	for( x= 0 ; x< 15; x++){
+		printf("kind %d\tname %s\tvalue %d L %d\t M %d\n",symbols_table[x].kind,symbols_table[x].name,symbols_table[x].val,symbols_table[x].level,symbols_table[x].addr);
+
+
+	}
 	program(symbols);
 
 	return 0;
@@ -74,10 +138,12 @@ void program(symbol *symbols)
 	if (token != periodsym)
 	{
 		printf("Period Expected!\n");
-		EXIT_FAILURE;
+		exit(1);
 	}
 
 }
+
+//void emit(opcodes op, int l, )
 
 void block(symbol *symbols)
 {
@@ -90,21 +156,21 @@ void block(symbol *symbols)
 			if (token != identsym)
 			{
 				printf("Expected an Identity Symbol!\n");
-				EXIT_FAILURE;
+				exit(1);
 			}
 			//printf("\t\tline 96\n");
 			get_token(symbols);
 			if (token != eqsym)
 			{
 				printf("Expected an Equal Symbol\n");
-				EXIT_FAILURE;
+				exit(1);
 			}
 			//printf("\t\tline 103\n");
 			get_token(symbols);
 			if (token != numbersym)
 			{
 				printf("Expected a number\n");
-				EXIT_FAILURE;
+				exit(1);
 			}
 			//printf("\t\tline 110\n");
 			get_token(symbols);
@@ -113,7 +179,7 @@ void block(symbol *symbols)
 		if (token != semicolonsym)
 		{
 			printf("Expected a Semicolon\n");
-			EXIT_FAILURE;
+			exit(1);
 		}
 		//printf("\t\tline 119\n");
 		get_token(symbols);
@@ -127,7 +193,7 @@ void block(symbol *symbols)
 			if (token != identsym)
 			{
 				printf("Expected an Identity Symbol!\n");
-				EXIT_FAILURE;
+				exit(1);
 			}
 			//printf("\t\tline 132\n");
 			get_token(symbols);
@@ -136,7 +202,7 @@ void block(symbol *symbols)
 		if (token != semicolonsym)
 		{
 			printf("Expected a Semicolon\n");
-			EXIT_FAILURE;
+			exit(1);
 		}
 		//printf("\t\tline 142\n");
 		get_token(symbols);
@@ -148,20 +214,20 @@ void block(symbol *symbols)
 		if (token != identsym)
 		{
 			printf("Expected an Identity Symbol!\n");
-			EXIT_FAILURE;
+			exit(1);
 		}
 		get_token(symbols);
 		if (token != semicolonsym)
 		{
 			printf("Expected a Semicolon\n");
-			EXIT_FAILURE;
+			exit(1);
 		}
 		get_token(symbols);
 		block(symbols);
 		if (token != semicolonsym)
 		{
 			printf("Expected a Semicolon\n");
-			EXIT_FAILURE;
+			exit(1);
 		}
 		get_token(symbols);
 
@@ -180,7 +246,7 @@ void statement(symbol *symbols)
 		if (token != becomessym)
 		{
 			printf("Expected a Becomes Symbol\n");
-			EXIT_FAILURE;
+			exit(1);
 		}
 		//printf("\t\tline 185\n");
 		get_token(symbols);
@@ -193,7 +259,7 @@ void statement(symbol *symbols)
 		if (token != identsym)
 		{
 			printf("Expected an Identity Symbol\n");
-			EXIT_FAILURE;
+			exit(1);
 		}
 		//printf("\t\tline 198\n");
 		get_token(symbols);
@@ -212,7 +278,7 @@ void statement(symbol *symbols)
 		if (token != endsym)
 		{
 			printf("Expected an End Symbol\n");
-			EXIT_FAILURE;
+			exit(1);
 		}
 		//printf("\t\tline 220\n");
 		get_token(symbols);
@@ -225,7 +291,7 @@ void statement(symbol *symbols)
 		if (token != thensym)
 		{
 			printf("Expected a Then Symbol!\n");
-			EXIT_FAILURE;
+			exit(1);
 		}
 		//printf("\t\tline 233\n");
 		get_token(symbols);
@@ -239,7 +305,7 @@ void statement(symbol *symbols)
 		if (token != dosym)
 		{
 			printf("Expected a Do Symbol\n");
-			EXIT_FAILURE;
+			exit(1);
 		}
 		//printf("\t\tline 247\n");
 		get_token(symbols);
@@ -251,7 +317,7 @@ void statement(symbol *symbols)
 		if (token != identsym)
 		{
 			printf("Expected an Identity Symbol!\n");
-			EXIT_FAILURE;
+			exit(1);
 		}
 		get_token(symbols);
 	}
@@ -261,7 +327,7 @@ void statement(symbol *symbols)
 		if (token != identsym)
 		{
 			printf("Expected an Identity Symbol!\n");
-			EXIT_FAILURE;
+			exit(1);
 		}
 		get_token(symbols);
 	}
@@ -281,7 +347,7 @@ void condition(symbol *symbols)
 		if (token != eqsym && token != neqsym && token != leqsym && token != gtrsym && token != geqsym)
 		{
 			printf("Unexpected Expression\n");
-			EXIT_FAILURE;
+			exit(1);
 		}
 		//printf("\t\tline 269\n");
 		get_token(symbols);
@@ -336,7 +402,7 @@ void factor(symbol *symbols)
 		if (token != rparentsym)
 		{
 			printf("Expected a Right Parenthesis Symbol\n");
-			EXIT_FAILURE;
+			exit(1);
 		}
 		//printf("\t\tline 324\n");
 		get_token(symbols);
@@ -353,6 +419,7 @@ symbol* read_file()
 	int x = 1;
 	FILE *ifp = fopen("lexemelist.txt","r");
 	symbol *symbols = malloc(sizeof(symbol) * 1000);
+	bzero(symbols,sizeof(symbol)*1000);
 	int c = 0;
 	int counter = -1;
 	int continued = 0;
@@ -365,21 +432,23 @@ symbol* read_file()
 
 		if(c== ' ' || c == '\n')
 		{
-		    if(symbols[counter].kind == 3){
+		    if(symbols[counter].kind == 3)
+		    {
 
                 c = fgetc(ifp);
                 symbols[counter].val = (c - '0');
                 c = fgetc(ifp);
-                while(!inc){
-                        if(c == ' ' || c == '\n')
-                            inc =1;
-                        else{
-                    symbols[counter].val = symbols[counter].val *10 + (c- '0');
-                    c = fgetc(ifp);
-                        }
-
-                }
-                }
+                while(!inc)
+                {
+                	if(c == ' ' || c == '\n')
+            	        inc =1;
+                    else
+                    {
+            	        symbols[counter].val = symbols[counter].val *10 + (c- '0');
+                	    c = fgetc(ifp);
+                    }
+				}
+            }
             inc = 0;
             continued = 0;
 
