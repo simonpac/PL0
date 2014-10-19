@@ -45,6 +45,38 @@ typedef enum
 	DIV, ODD, MOD, EQL, NEQ, LSS, LEQ, GTR, GEQ
 } operator;
 
+// Declaration of Error Codes
+typedef enum 
+{
+	equal_instead_of_becomes = 1,
+	equal_must_follow_number = 2,
+	identifier_must_follow_equal = 3,
+	cvp_must_be_followed_by_identifier = 4,
+	semi_or_comma_missing = 5,
+	incorrect_sym_after_proc = 6,
+	statement_expected = 7,
+	incorrect_sym_after_block = 8,
+	period_expected = 9,
+	semi_missing_between_statements = 10,
+	undeclared_identifier = 11,
+	assign_to_cons_or_proc = 12,
+	assignment_expected = 13,
+	call_must_follow_ident = 14,
+	meaningless_callvar = 15,
+	then_expected = 16,
+	missing_semi_or_rightbrac = 17,
+	do_expected = 18,
+	incorrect_sym_after_state = 19,
+	relation_expected = 20,
+	expression_contains_proc = 21,
+	right_paren_missing = 22,
+	prec_factor_wrong_beginning = 23,
+	expression_wrong_beginning = 24,
+	num_too_large = 25,
+	right_brack_missing_at_end = 26,
+	wrong_storing = 27
+} errorCode;
+
 /*
 typedef enum
 {
@@ -76,7 +108,11 @@ void create_symbol(symbol *symbols);
 void generate_code(int op, int l, int m);
 int find_constant(char* variable_name);
 int find_variable(char* variable_name);
+void generate_error(errorCode code);
 symbol symbols_table[1000];
+int increment_program_counter();
+int get_program_counter();
+void get_prev_instruction(int index, int opcode, int m);
 
 void create_symbol(symbol * symbols)
 {
@@ -114,7 +150,7 @@ void create_symbol(symbol * symbols)
 				symbols_table[counter_symbol].val = symbols[counter].val;
 				counter_symbol ++;
 				counter ++;
-				printf("%d\n",symbols[counter].kind);
+				//printf("%d\n",symbols[counter].kind);
 			}
 		
 		}
@@ -132,12 +168,40 @@ void get_token(symbol *symbols)
 	token_num++;
 }
 
+int increment_program_counter(){
+
+	return program_counter++;
+
+}
+
+int get_program_counter(){
+	return program_counter;
+
+}
+
+void get_prev_instruction(int index, int opcode, int m){
+	mcode[index].op = opcode;
+	mcode[index].l = 0;
+	mcode[index].m = m;
+	//printf("%d %d %d\n\n", mcode[index].op,mcode[index].l,mcode[index].m);
+
+
+}
+
 int main()
 {
+	int ab =0;
 	symbol *symbols = read_file();
 	create_symbol(symbols);
-	program(symbols);
+	printf("Hello!\n");
 
+	program(symbols);
+	FILE *ifp = fopen("mcode.txt","w");
+	for(ab= 0; ab< program_counter; ab++){
+		fprintf(ifp,"%d %d %d\n\n", mcode[ab].op,mcode[ab].l,mcode[ab].m);
+
+
+	}
 	return 0;
 }
 
@@ -149,8 +213,10 @@ void program(symbol *symbols)
 
 	if (token != periodsym)
 	{
-		printf("Period Expected!\n");
-		exit(1);
+		//if (token != nulsym)
+			//generate_error(incorrect_sym_after_block);
+		//else
+			generate_error(period_expected);
 	}
 	generate_code(halt, 0, 3);
 }
@@ -160,7 +226,7 @@ void generate_code(int op, int l, int m)
 	mcode[program_counter].op = op;
 	mcode[program_counter].l = l;
 	mcode[program_counter].m = m;
-	printf("%d %d %d\n\n", mcode[program_counter].op,mcode[program_counter].l,mcode[program_counter].m);
+	//printf("%d %d %d\n\n", mcode[program_counter].op,mcode[program_counter].l,mcode[program_counter].m);
 	program_counter++;
 }
 
@@ -176,22 +242,24 @@ void block(symbol *symbols)
 			get_token(symbols);
 			if (token != identsym)
 			{
-				printf("Expected an Identity Symbol!\n");
-				exit(1);
+				generate_error(cvp_must_be_followed_by_identifier);
 			}
 			//printf("\t\tline 96\n");
 			get_token(symbols);
 			if (token != eqsym)
 			{
-				printf("Expected an Equal Symbol\n");
-				exit(1);
+				if (token == becomessym) {
+					generate_error(equal_instead_of_becomes);
+				}
+				else {
+					generate_error(identifier_must_follow_equal);
+				}
 			}
 			//printf("\t\tline 103\n");
 			get_token(symbols);
 			if (token != numbersym)
 			{
-				printf("Expected a number\n");
-				exit(1);
+				generate_error(equal_must_follow_number);
 			}
 			//printf("\t\tline 110\n");
 			get_token(symbols);
@@ -199,8 +267,7 @@ void block(symbol *symbols)
 		} while (token == commasym);
 		if (token != semicolonsym)
 		{
-			printf("Expected a Semicolon\n");
-			exit(1);
+			generate_error(semi_or_comma_missing);
 		}
 		//printf("\t\tline 119\n");
 		get_token(symbols);
@@ -213,8 +280,7 @@ void block(symbol *symbols)
 			get_token(symbols);
 			if (token != identsym)
 			{
-				printf("Expected an Identity Symbol!\n");
-				exit(1);
+				generate_error(cvp_must_be_followed_by_identifier);
 			}
 			//printf("\t\tline 132\n");
 			get_token(symbols);
@@ -222,8 +288,7 @@ void block(symbol *symbols)
 
 		if (token != semicolonsym)
 		{
-			printf("Expected a Semicolon\n");
-			exit(1);
+			generate_error(semi_or_comma_missing);
 		}
 		//printf("\t\tline 142\n");
 		get_token(symbols);
@@ -295,21 +360,25 @@ int find_constant(char* variable_name){
 void statement(symbol *symbols)
 {
 	int temp1 = 0;
+	int temp_program_counter[2];
 	if (token == identsym)
 	{
 		if(!find_variable(symbols[token_num-1].name))
 		{
-			if(!find_constant(symbols[token_num-1].name))
-			printf("Error. Variable not found.\n");
-			exit(1);
+			// CHECK THE LOGIC HERE MIGHT NOT BE NOT SIGN (!)
+			if(!find_constant(symbols[token_num-1].name)) {
+				generate_error(assign_to_cons_or_proc);
+			}
+			else {
+				generate_error(undeclared_identifier);
+			}
 		}
 		//printf("\t\tline 178\n");
 		get_token(symbols);
 		//printf("token = %d\n", token);
 		if (token != becomessym)
 		{
-			printf("Expected a Becomes Symbol\n");
-			exit(1);
+			generate_error(assignment_expected);
 		}
 		//printf("\n%d M1 \n",m1);
 		temp1 = m1;
@@ -325,8 +394,7 @@ void statement(symbol *symbols)
 		get_token(symbols);
 		if (token != identsym)
 		{
-			printf("Expected an Identity Symbol\n");
-			exit(1);
+			generate_error(call_must_follow_ident);
 		}
 		generate_code(cal, 0, m1);
 		//printf("\t\tline 198\n");
@@ -343,43 +411,72 @@ void statement(symbol *symbols)
 			get_token(symbols);
 			statement(symbols);
 		}
-		if (token != endsym)
+		if (token != endsym && (token != beginsym && token 
+			!= whilesym && token != ifsym && token != identsym))
 		{
-			printf("Expected an End Symbol\n");
-			exit(1);
+			generate_error(missing_semi_or_rightbrac);
 		}
+		else if (token == identsym || token == ifsym ||
+			token == whilesym || token == beginsym) {
+			generate_error(semi_missing_between_statements);
+		} 
 		//printf("\t\tline 220\n");
 		get_token(symbols);
 	}
 	else if (token == ifsym)
 	{
+		temp_program_counter[1] = 0;
 		//printf("\t\tline 225\n");
 		get_token(symbols);
 		condition(symbols);
+		temp_program_counter[0] = increment_program_counter();//temp label is equal to PC +1
+
+
 		if (token != thensym)
 		{
-			printf("Expected a Then Symbol!\n");
-			exit(1);
+			generate_error(then_expected);
 		}
 		//printf("\t\tline 233\n");
 		get_token(symbols);
 		statement(symbols);
+
+		if(token == elsesym){
+			temp_program_counter[1] = increment_program_counter();
+			program_counter--;
+			get_token(symbols);
+
+		}
+
+		get_prev_instruction(temp_program_counter[0],jpc,get_program_counter());
+		if(temp_program_counter[1]){
+			statement(symbols);
+			get_prev_instruction(temp_program_counter[1],jmp,get_program_counter());
+
+		}
+
 	}
 	else if (token == whilesym)
 	{
+
 		//printf("\t\tline 238\n");
 		get_token(symbols);
+
+		temp_program_counter[0] = get_program_counter();
+
 		condition(symbols);
+		
+		temp_program_counter[1] = increment_program_counter();
+		
 		if (token != dosym)
 		{
-			printf("Expected a Do Symbol\n");
-			exit(1);
+			generate_error(do_expected);
 		}
 		//printf("\t\tline 247\n");
 		get_token(symbols);
 		statement(symbols);
 
 		generate_code(jmp, 0, program_counter);
+		get_prev_instruction(temp_program_counter[1], jpc, get_program_counter());
 	}
 	else if (token == readsym)
 	{
@@ -392,11 +489,12 @@ void statement(symbol *symbols)
 			{
 				generate_code(sto, 0, m1);
 			}
-		}
-		else
-		{
-			printf("Expected an Identity Symbol!\n");
-			exit(1);
+			else if (find_constant(symbols[token_num - 1].name))
+			{
+				generate_error(wrong_storing);
+			}
+			else
+				generate_error(undeclared_identifier);
 		}
 		get_token(symbols);
 	}
@@ -413,15 +511,113 @@ void statement(symbol *symbols)
 			{
 				generate_code(lit, 0, m1);
 			}
-		}
-		else
-		{
-			printf("Expected an Identity Symbol!\n");
-			exit(1);
+			else
+			{
+				generate_error(undeclared_identifier);
+			}
 		}
 		get_token(symbols);
 		generate_code(print_top_stack, 0, 1);
 	}
+	else if (token == endsym)
+		return;
+	else {
+		if (token == periodsym);
+		else
+			generate_error(statement_expected);
+	}
+}
+
+void generate_error(errorCode code){
+  printf("Error #%d at token %d: ", code, token_num);
+
+  switch(code){
+  case(equal_instead_of_becomes): // Used
+    printf("Use = instead of :=.\n");
+    break;
+  case(equal_must_follow_number): // Used
+    printf("= must be followed by a number.\n");
+    break;
+  case(identifier_must_follow_equal): // Used
+    printf("Identifier must be followed by a number.\n");
+    break;
+  case(cvp_must_be_followed_by_identifier): // Used
+    printf("const, var, procedure must be followed by identifier.\n");
+    break;
+  case(semi_or_comma_missing): // Used
+    printf("Semicolon or comma missing.\n");
+    break;
+  case(incorrect_sym_after_proc): // Used
+    printf("Incorrect symbol after procedure declaration.\n");
+    break;
+  case(statement_expected): // Used
+    printf("Statement expected.\n");
+    break;
+  case(incorrect_sym_after_block): // Used
+    printf("Incorrect symbol after statement part in block.\n");
+    break;
+  case(period_expected): // Used
+    printf("Period expected.\n");
+    break;
+  case(semi_missing_between_statements): // Used
+    printf("Semicolon between statements missing.\n");
+    break;
+  case(undeclared_identifier):
+    printf("Undeclared identifier.\n");
+    break;
+  case(assign_to_cons_or_proc): // Used
+    printf("Assignment to constant or procedure is not allowed.\n");
+    break;
+  case(assignment_expected): // Used
+    printf("Assignment operator expected.\n");
+    break;
+  case(call_must_follow_ident): // Used
+    printf("callsym must be followed by an identifier.\n");
+    break;
+  case(meaningless_callvar): // NO
+    printf("Call of a constant or variable is meaningless.\n");
+    break;
+  case(then_expected): // Used
+    printf("thensym expected.\n");
+    break;
+  case(missing_semi_or_rightbrac): // Used
+    printf("Semicolon or } expected.\n");
+    break;
+  case(do_expected): // Used
+    printf("dosym expected.\n");
+    break;
+  case(incorrect_sym_after_state): // Used parallel to missing_semi_or_rightbrac
+    printf("Incorrect symbol following statement.\n");
+    break;
+  case(relation_expected): // Used
+    printf("Relational operator expected.\n");
+    break;
+  case(expression_contains_proc): // Used
+    printf("Expression must not contain a procedure identifier.\n");
+    break;
+  case(right_paren_missing): // Used
+    printf("Right parenthesis missing.\n");
+    break;
+  case(prec_factor_wrong_beginning): // Used
+    printf("The preceding factor cannot begin with this symbol.\n");
+    break;
+  case(expression_wrong_beginning):
+    printf("An expression cannot begin with this symbol.\n");
+    break;
+  case(num_too_large): // NO?
+    printf("This number is too large.\n");
+    break;
+  case(right_brack_missing_at_end):
+    printf("No right bracket at the end of the program\n");
+    break;
+  case(wrong_storing):
+    printf("Cannot store a value in a constant or procedure.\n");
+    break;
+  default:
+    printf("Improper error code.\n");
+    break;
+  }
+  exit(1);
 }
 
 void condition(symbol *symbols)
@@ -439,8 +635,10 @@ void condition(symbol *symbols)
 		expression(symbols);
 		if (token != eqsym && token != neqsym && token != leqsym && token != gtrsym && token != geqsym)
 		{
-			printf("Unexpected Expression\n");
-			exit(1);
+			if (token == becomessym) {
+				generate_error(equal_instead_of_becomes);
+			}
+			generate_error(relation_expected);
 		}
 		else
 		{
@@ -468,10 +666,14 @@ void condition(symbol *symbols)
 void expression(symbol *symbols)
 {
 	int temp;
+
+	if (token != plussym && token != minussym && token != numbersym && token != lparentsym 
+		&& token != identsym) {
+		generate_error(expression_wrong_beginning);
+	}
+
 	if (token == plussym || token == minussym)
 	{
-		//temp = token;
-		//printf("\t\tline 279\n");
 		get_token(symbols);
 	}
 	term(symbols);
@@ -518,8 +720,10 @@ void factor(symbol *symbols)
 		if (find_constant(symbols[token_num-1].name)){
 			generate_code(lit, 0, m1);
 		}
-		if (find_variable(symbols[token_num-1].name))
+		else if (find_variable(symbols[token_num-1].name))
 			generate_code(lod, 0, m1);
+		else
+			generate_error(undeclared_identifier);
 		//printf("\t\tline 306\n");
 		get_token(symbols);
 	}
@@ -536,15 +740,14 @@ void factor(symbol *symbols)
 		expression(symbols);
 		if (token != rparentsym)
 		{
-			printf("Expected a Right Parenthesis Symbol\n");
-			exit(1);
+			generate_error(right_paren_missing);
 		}
 		//printf("\t\tline 324\n");
 		get_token(symbols);
 	}
 	else
 	{
-		printf("Error. Unexpected Symbol\n");
+		generate_error(prec_factor_wrong_beginning);
 	}
 }
 
