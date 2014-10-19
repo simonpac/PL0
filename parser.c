@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#define MAX_CODE_LENGTH 500
+
 typedef struct symbol
 {
 	int kind;
@@ -12,17 +14,12 @@ typedef struct symbol
 	int addr;
 }symbol;
 
-/*
-typedef enum
+typedef struct instruction
 {
-	nulsym = 1, identsym = 2, numbersym = 3, plussym = 4, minussym = 5,
-	multsym = 6,  slashsym = 7, oddsym = 8, eqsym = 9, neqsym = 10, lessym = 11, leqsym = 12,
-	gtrsym = 13, geqsym = 14, lparentsym = 15, rparentsym = 16, commasym = 17, semicolonsym = 18,
-	periodsym = 19, becomessym = 20, beginsym = 21, endsym = 22, ifsym = 23, thensym = 24,
-	whilesym = 25, dosym = 26, callsym = 27, constsym = 28, varsym = 29, procsym = 30, writesym = 31,
-	readsym = 32, elsesym = 33
-} token_type;
-*/
+	int op;
+	int l;
+	int m;
+} instruction;
 
 // token type for parser
 typedef enum
@@ -38,11 +35,34 @@ typedef enum
 // Opcodes for virtual machine
 typedef enum
 {
-	LIT = 1, OPR, LOD, STO, CAL, INC, JMP, JPC,SOI, SIO
+	lit = 1, opr, lod, sto, cal, inc, jmp, jpc, print_top_stack, read_input, halt
 } opcode;
 
+//Operator codes
+typedef enum
+{
+	RET = 0, NEG, ADD, SUB, MUL,
+	DIV, ODD, MOD, EQL, NEQ, LSS, LEQ, GTR, GEQ
+} operator;
+
+/*
+typedef enum
+{
+	nulsym = 1, identsym = 2, numbersym = 3, plussym = 4, minussym = 5,
+	multsym = 6,  slashsym = 7, oddsym = 8, eqsym = 9, neqsym = 10, lessym = 11, leqsym = 12,
+	gtrsym = 13, geqsym = 14, lparentsym = 15, rparentsym = 16, commasym = 17, semicolonsym = 18,
+	periodsym = 19, becomessym = 20, beginsym = 21, endsym = 22, ifsym = 23, thensym = 24,
+	whilesym = 25, dosym = 26, callsym = 27, constsym = 28, varsym = 29, procsym = 30, writesym = 31,
+	readsym = 32, elsesym = 33
+} token_type;
+*/
+
+// Global Variables
 token_type token;
-int token_num = 0;
+int token_num = 0, program_counter = 0, var_counter = 0, m1 = 0;
+instruction mcode[MAX_CODE_LENGTH];
+
+// Function prototypes
 symbol* read_file();
 void get_token(symbol *symbols);
 void program(symbol *symbols);
@@ -52,17 +72,17 @@ void expression(symbol *symbols);
 void condition(symbol *symbols);
 void term(symbol *symbols);
 void factor(symbol *symbols);
-symbol* create_symbol(symbol* symbols);
+void create_symbol(symbol *symbols);
+void generate_code(int op, int l, int m);
+int find_constant(char* variable_name);
+int find_variable(char* variable_name);
+symbol symbols_table[1000];
 
-
-symbol* create_symbol(symbol* symbols)
+void create_symbol(symbol * symbols)
 {
-
 	int counter = 0;
 	int counter_symbol = 0;
-	int var_counter = 0;
-	symbol *create_symbols = malloc(sizeof(symbol) * 1000);
-	bzero(create_symbols,sizeof(symbol)*1000);
+	bzero(symbols_table,sizeof(symbol)*1000);
 
 	while(1)
 	{
@@ -72,10 +92,10 @@ symbol* create_symbol(symbol* symbols)
 			while(symbols[counter].kind != semicolonsym){
 					if(symbols[counter].kind == 17)
 						counter ++;
-					create_symbols[counter_symbol].kind = 2;
-					strcpy(create_symbols[counter_symbol].name,symbols[counter].name);
-					create_symbols[counter_symbol].level = 0;
-					create_symbols[counter_symbol].addr = var_counter;
+					symbols_table[counter_symbol].kind = 2;
+					strcpy(symbols_table[counter_symbol].name,symbols[counter].name);
+					symbols_table[counter_symbol].level = 0;
+					symbols_table[counter_symbol].addr = var_counter;
 					var_counter ++;
 					counter_symbol ++;
 					counter ++;
@@ -87,11 +107,11 @@ symbol* create_symbol(symbol* symbols)
 			while(symbols[counter].kind != semicolonsym){
 				if(symbols[counter].kind == 17)
 					counter ++;
-				create_symbols[counter_symbol].kind = 1;
-				strcpy(create_symbols[counter_symbol].name, symbols[counter].name);
+				symbols_table[counter_symbol].kind = 1;
+				strcpy(symbols_table[counter_symbol].name, symbols[counter].name);
 				counter ++;
 				counter ++;
-				create_symbols[counter_symbol].val = symbols[counter].val;
+				symbols_table[counter_symbol].val = symbols[counter].val;
 				counter_symbol ++;
 				counter ++;
 				printf("%d\n",symbols[counter].kind);
@@ -99,13 +119,11 @@ symbol* create_symbol(symbol* symbols)
 		
 		}
 
-		else if(create_symbols[counter].kind == 0)
-			return create_symbols;
+		else if(symbols_table[counter].kind == 0)
+			break;
 
 		counter ++;
 	}
-
-		return create_symbols;
 }
 
 void get_token(symbol *symbols)
@@ -117,13 +135,7 @@ void get_token(symbol *symbols)
 int main()
 {
 	symbol *symbols = read_file();
-	symbol * symbols_table = create_symbol(symbols);
-	int x = 0;
-	for( x= 0 ; x< 15; x++){
-		printf("kind %d\tname %s\tvalue %d L %d\t M %d\n",symbols_table[x].kind,symbols_table[x].name,symbols_table[x].val,symbols_table[x].level,symbols_table[x].addr);
-
-
-	}
+	create_symbol(symbols);
 	program(symbols);
 
 	return 0;
@@ -140,7 +152,16 @@ void program(symbol *symbols)
 		printf("Period Expected!\n");
 		exit(1);
 	}
+	generate_code(halt, 0, 3);
+}
 
+void generate_code(int op, int l, int m)
+{
+	mcode[program_counter].op = op;
+	mcode[program_counter].l = l;
+	mcode[program_counter].m = m;
+	printf("%d %d %d\n", mcode[program_counter].op,mcode[program_counter].l,mcode[program_counter].m);
+	program_counter++;
 }
 
 //void emit(opcodes op, int l, )
@@ -233,13 +254,54 @@ void block(symbol *symbols)
 
 	} while (token == procsym);
 	*/
+	generate_code(inc, 0, var_counter);
 	statement(symbols);
+	
+	//generate_code(opr, 0, RET);
 }
+
+int find_variable(char* variable_name){
+
+	int x = 0;
+	while(symbols_table[x].kind != 0)
+	{
+		if (strcmp(symbols_table[x].name, variable_name) == 0 && symbols_table[x].kind == 2)
+		{
+			m1 = symbols_table[x].addr;
+			return 1;
+		}
+		x++;
+	}
+	return 0;
+}
+
+int find_constant(char* variable_name){
+
+	int x = 0;
+	while(symbols_table[x].kind != 0)
+	{
+		if (strcmp(symbols_table[x].name, variable_name) == 0 && symbols_table[x].kind == 1)
+		{
+			m1 = symbols_table[x].val;
+			return 1;
+		}
+		x++;
+	}
+	return 0;
+}
+
+//void find_function(char)
 
 void statement(symbol *symbols)
 {
 	if (token == identsym)
 	{
+		if(!find_variable(symbols[token_num-1].name))
+		{
+			if(find_constant(symbols[token_num-1].name))
+			printf("Error. Variable not found.\n");
+			exit(1);
+		}
 		//printf("\t\tline 178\n");
 		get_token(symbols);
 		//printf("token = %d\n", token);
@@ -251,6 +313,8 @@ void statement(symbol *symbols)
 		//printf("\t\tline 185\n");
 		get_token(symbols);
 		expression(symbols);
+		printf("\n%s\n",symbols[token_num].name);
+		generate_code(sto, 0, m1);
 	}
 	else if (token == callsym)
 	{
@@ -261,6 +325,7 @@ void statement(symbol *symbols)
 			printf("Expected an Identity Symbol\n");
 			exit(1);
 		}
+		generate_code(cal, 0, m1);
 		//printf("\t\tline 198\n");
 		get_token(symbols);
 	}
@@ -310,11 +375,22 @@ void statement(symbol *symbols)
 		//printf("\t\tline 247\n");
 		get_token(symbols);
 		statement(symbols);
+
+		generate_code(jmp, 0, program_counter);
 	}
 	else if (token == readsym)
 	{
+		generate_code(readsym, 0, 2);
 		get_token(symbols);
-		if (token != identsym)
+
+		if (token == identsym)
+		{
+			if (find_variable(symbols[token_num - 1].name))
+			{
+				generate_code(sto, 0, m1);
+			}
+		}
+		else
 		{
 			printf("Expected an Identity Symbol!\n");
 			exit(1);
@@ -324,12 +400,24 @@ void statement(symbol *symbols)
 	else if (token == writesym)
 	{
 		get_token(symbols);
-		if (token != identsym)
+		if (token == identsym)
+		{
+			if (find_variable(symbols[token_num - 1].name))
+			{
+				generate_code(lod, 0, m1);
+			}
+			else if (find_constant(symbols[token_num-1].name))
+			{
+				generate_code(lit, 0, m1);
+			}
+		}
+		else
 		{
 			printf("Expected an Identity Symbol!\n");
 			exit(1);
 		}
 		get_token(symbols);
+		generate_code(print_top_stack, 0, 1);
 	}
 }
 
@@ -340,45 +428,83 @@ void condition(symbol *symbols)
 		//printf("\t\tline 257\n");
 		get_token(symbols);
 		expression(symbols);
+		generate_code(opr, 0, ODD);
 	}
 	else
 	{
+		int temp;
 		expression(symbols);
 		if (token != eqsym && token != neqsym && token != leqsym && token != gtrsym && token != geqsym)
 		{
 			printf("Unexpected Expression\n");
 			exit(1);
 		}
+		else
+		{
+			temp = token;
+		}
 		//printf("\t\tline 269\n");
 		get_token(symbols);
 		expression(symbols);
+
+		if (temp == eqsym)
+			generate_code(opr, 0, EQL);
+		else if (temp == neqsym)
+			generate_code(opr, 0, NEQ);
+		else if (temp == lessym)
+			generate_code(opr, 0, LSS);
+		else if (temp == leqsym)
+			generate_code(opr, 0, LEQ);
+		else if (temp == gtrsym)
+			generate_code(opr, 0, GTR);
+		else if (temp == geqsym)
+			generate_code(opr, 0, GEQ);
 	}
 }
 
 void expression(symbol *symbols)
 {
+	int temp;
 	if (token == plussym || token == minussym)
 	{
+		//temp = token;
 		//printf("\t\tline 279\n");
 		get_token(symbols);
 	}
 	term(symbols);
+
+	if (token == minussym)
+		generate_code(opr, 0, NEG);
+
 	while (token == plussym || token == minussym)
 	{
 		//printf("\t\tline 285\n");
+		temp = token;
 		get_token(symbols);
 		term(symbols);
+
+		if (temp == plussym)
+			generate_code(opr, 0, ADD);
+		if (temp == minussym)
+			generate_code(opr, 0, SUB);
 	}
 }
 
 void term(symbol *symbols)
 {
+	int temp;
 	factor(symbols);
 	while (token == multsym || token == slashsym)
 	{
+		temp = token;
 		//printf("\t\tline 296\n");
 		get_token(symbols);
 		factor(symbols);
+
+		if (temp == multsym)
+			generate_code(opr, 0, MUL);
+		if (temp == slashsym)
+			generate_code(opr, 0, DIV);
 	}
 }
 
@@ -386,11 +512,17 @@ void factor(symbol *symbols)
 {
 	if (token == identsym)
 	{
+		if (find_constant(symbols[token_num-1].name)){
+			generate_code(lit, 0, m1);
+		}
+		if (find_variable(symbols[token_num-1].name))
+			generate_code(lod, 0, m1);
 		//printf("\t\tline 306\n");
 		get_token(symbols);
 	}
 	else if (token == numbersym)
 	{
+		generate_code(lit, 0, symbols[token_num-1].val);
 		//printf("\t\tline 311\n");
 		get_token(symbols);
 	}
