@@ -77,7 +77,7 @@ void generate_code(int op, int l, int m);
 int find_constant(char* variable_name);
 int find_variable(char* variable_name);
 symbol symbols_table[1000];
-void backPatch(int location, opcode op, int m);
+
 void create_symbol(symbol * symbols)
 {
 	int counter = 0;
@@ -137,6 +137,7 @@ int main()
 	symbol *symbols = read_file();
 	create_symbol(symbols);
 	program(symbols);
+
 	return 0;
 }
 
@@ -163,14 +164,7 @@ void generate_code(int op, int l, int m)
 	program_counter++;
 }
 
-void backPatch(int location, opcode op, int m){
-	mcode[location].op = (int)op;
-	mcode[location].l =0;
-	mcode[location].m = m;
-		printf("%d %d %d\n\n", mcode[location].op,mcode[location].l,mcode[location].m);
-	
-	
-}
+//void emit(opcodes op, int l, )
 
 void block(symbol *symbols)
 {
@@ -274,11 +268,11 @@ int find_variable(char* variable_name){
 		if (strcmp(symbols_table[x].name, variable_name) == 0 && symbols_table[x].kind == 2)
 		{
 			m1 = symbols_table[x].addr;
-			return m1;
+			return 1;
 		}
 		x++;
 	}
-	return -1;
+	return 0;
 }
 
 int find_constant(char* variable_name){
@@ -289,29 +283,25 @@ int find_constant(char* variable_name){
 		if (strcmp(symbols_table[x].name, variable_name) == 0 && symbols_table[x].kind == 1)
 		{
 			m1 = symbols_table[x].val;
-			return m1;
+			return 1;
 		}
 		x++;
 	}
-	return -1;
+	return 0;
 }
 
 //void find_function(char)
 
 void statement(symbol *symbols)
 {
-	int tempLabels[2];
-	int variable_checker, constant_checker;
+	int temp1 = 0;
 	if (token == identsym)
 	{
-		variable_checker = find_variable(symbols[token_num - 1].name);
-		if(variable_checker == -1)
+		if(!find_variable(symbols[token_num-1].name))
 		{
-			constant_checker = find_constant(symbols[token_num-1].name);
-			if(constant_checker == -1) {
-				printf("Error. Variable not found.\n");
-				exit(1);
-			}
+			if(!find_constant(symbols[token_num-1].name))
+			printf("Error. Variable not found.\n");
+			exit(1);
 		}
 		//printf("\t\tline 178\n");
 		get_token(symbols);
@@ -321,10 +311,13 @@ void statement(symbol *symbols)
 			printf("Expected a Becomes Symbol\n");
 			exit(1);
 		}
+		//printf("\n%d M1 \n",m1);
+		temp1 = m1;
 		//printf("\t\tline 185\n");
 		get_token(symbols);
 		expression(symbols);
-		generate_code(sto, 0, variable_checker);
+		//printf("\n%d M1 \n",m1);
+		generate_code(sto, 0, temp1);
 	}
 	else if (token == callsym)
 	{
@@ -361,10 +354,8 @@ void statement(symbol *symbols)
 	else if (token == ifsym)
 	{
 		//printf("\t\tline 225\n");
-		tempLabels[1] = 0;
 		get_token(symbols);
 		condition(symbols);
-		tempLabels[0] = ++program_counter;
 		if (token != thensym)
 		{
 			printf("Expected a Then Symbol!\n");
@@ -373,18 +364,6 @@ void statement(symbol *symbols)
 		//printf("\t\tline 233\n");
 		get_token(symbols);
 		statement(symbols);
-		
-		if(token == elsesym){
-			tempLabels[1] = ++program_counter;
-			get_token(symbols);
-		}
-		backPatch(tempLabels[0],jpc,m1);
-		if(tempLabels[1]){
-			statement(symbols);
-			backPatch(tempLabels[1],jmp,m1);
-			
-		}
-		
 	}
 	else if (token == whilesym)
 	{
@@ -409,8 +388,7 @@ void statement(symbol *symbols)
 
 		if (token == identsym)
 		{
-			variable_checker = find_variable(symbols[token_num - 1].name);
-			if (variable_checker != -1)
+			if (find_variable(symbols[token_num - 1].name))
 			{
 				generate_code(sto, 0, m1);
 			}
